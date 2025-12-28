@@ -47,35 +47,63 @@
 
 ### Prerequisites
 
-- Python 3.12+
-- PostgreSQL 14+
-- UV package manager
+- Docker & Docker Compose (recommended)
+- **OR** for development:
+  - Python 3.12+
+  - Node.js 20+ & pnpm 8+
+  - PostgreSQL 14+
 
-### Installation
+### One-Command Setup (Recommended)
 
 ```bash
 # Clone repository
 git clone https://github.com/bedotech/smartbook.git
 cd smartbook
 
-# Install UV (if not already installed)
+# Start everything with Docker
+./start.sh
+```
+
+This will start:
+- **Guest Portal** (PWA): http://localhost:3000
+- **Admin Dashboard**: http://localhost:3001
+- **Backend API**: http://localhost:8000
+- **API Docs**: http://localhost:8000/api/docs
+- **Database**: PostgreSQL on port 5432
+
+### Manual Setup (Development)
+
+**Backend**:
+```bash
+# Install UV
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Install dependencies
 uv sync
 
-# Set up environment variables
+# Set up environment
 cp .env.example .env
-# Edit .env with your configuration
 
-# Run database migrations
+# Run migrations
 uv run alembic upgrade head
 
-# Start development server
+# Start server
 uv run uvicorn smartbook.main:app --reload
 ```
 
-Visit http://localhost:8000/api/docs for interactive API documentation.
+**Frontend**:
+```bash
+cd frontend
+
+# Install dependencies
+pnpm install
+
+# Start Guest Portal (port 3000)
+pnpm dev:guest
+
+# Start Admin Dashboard (port 3001)
+pnpm dev:admin
+```
 
 ---
 
@@ -94,34 +122,38 @@ Visit http://localhost:8000/api/docs for interactive API documentation.
 
 ```
 smartbook/
-├── src/smartbook/
-│   ├── api/                    # FastAPI routes and dependencies
+├── src/smartbook/              # Backend (FastAPI)
+│   ├── api/                    # API routes
 │   │   └── routes/
-│   │       ├── health.py       # Health check endpoints
-│   │       ├── guest_portal.py # Magic link authenticated guest endpoints
-│   │       └── admin.py        # Admin dashboard endpoints
-│   ├── domain/                 # Domain models and schemas
+│   │       ├── health.py
+│   │       ├── guest_portal.py # Guest endpoints
+│   │       └── admin.py        # Admin endpoints
+│   ├── domain/                 # Business domain
 │   │   ├── models/             # SQLAlchemy models
 │   │   ├── schemas/            # Pydantic schemas
-│   │   ├── enums.py            # Enums (BookingStatus, GuestType, etc.)
-│   │   └── database.py         # Database connection
+│   │   └── enums.py
 │   ├── services/               # Business logic
 │   │   ├── booking_service.py
-│   │   ├── guest_service.py
 │   │   ├── tax_calculation_service.py
-│   │   ├── tax_reporting_service.py
-│   │   └── magic_link.py
-│   ├── repositories/           # Data access layer
-│   ├── integrations/           # External integrations
-│   │   ├── ros1000_service.py  # ROS1000 SOAP client
-│   │   └── ros1000_xml_builder.py
-│   ├── config.py               # Application configuration
-│   └── main.py                 # FastAPI application
-├── tests/
-│   ├── unit/                   # Unit tests (124 tests)
-│   ├── integration/            # Integration tests (13 tests)
-│   └── e2e/                    # End-to-end tests (7 tests)
-└── alembic/                    # Database migrations
+│   │   └── ros1000_service.py
+│   └── main.py                 # FastAPI app
+├── frontend/                   # Frontend (React)
+│   ├── apps/
+│   │   ├── guest/              # Guest Portal PWA
+│   │   └── admin/              # Admin Dashboard
+│   ├── packages/               # Shared packages
+│   │   ├── ui/                 # Components
+│   │   ├── api/                # API client
+│   │   ├── utils/              # Utilities
+│   │   └── types/              # TypeScript types
+│   └── docker/                 # Frontend Dockerfiles
+├── tests/                      # Backend tests
+│   ├── unit/                   # 124 unit tests
+│   ├── integration/            # 13 integration tests
+│   └── e2e/                    # 7 e2e tests
+├── alembic/                    # Database migrations
+├── docker-compose.yml          # Full stack orchestration
+└── start.sh                    # Quick start script
 ```
 
 ---
@@ -159,15 +191,30 @@ uv run pytest tests/unit/test_tax_calculation.py -v
 
 See [DEPLOYMENT.md](DEPLOYMENT.md) for complete deployment instructions.
 
-### Quick Deploy (Docker)
+### Docker Deployment (Full Stack)
 
 ```bash
-# Build image
-docker build -t smartbook:latest .
+# Start all services (backend + frontend + database)
+./start.sh
 
-# Run container
-docker run -d -p 8000:8000 --env-file .env smartbook:latest
+# Or manually
+docker-compose up -d
+
+# View logs
+docker-compose logs -f
+
+# Stop services
+docker-compose down
 ```
+
+### Docker Services
+
+- `db` - PostgreSQL 14 database
+- `backend` - FastAPI application
+- `guest-app` - Guest Portal (Nginx)
+- `admin-app` - Admin Dashboard (Nginx)
+
+All services include health checks and automatic restarts.
 
 ---
 

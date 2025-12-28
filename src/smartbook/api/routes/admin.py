@@ -162,7 +162,7 @@ async def get_booking(
     """
     booking_service = BookingService(db, tenant_id)
 
-    booking = await booking_service.get_booking(booking_id)
+    booking = await booking_service.get_booking_by_id(booking_id)
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -284,7 +284,7 @@ async def get_booking_guests(
     Returns:
         List of guests
     """
-    guest_service = GuestService(db, tenant_id)
+    guest_service = GuestService(db)
     guests = await guest_service.get_guests_for_booking(booking_id)
 
     return guests
@@ -309,7 +309,7 @@ async def update_guest(
     Returns:
         Updated guest
     """
-    guest_service = GuestService(db, tenant_id)
+    guest_service = GuestService(db)
 
     try:
         guest = await guest_service.update_guest(guest_id, guest_data)
@@ -340,7 +340,7 @@ async def delete_guest(
         tenant_id: Current tenant ID (from JWT)
         db: Database session
     """
-    guest_service = GuestService(db, tenant_id)
+    guest_service = GuestService(db)
 
     try:
         success = await guest_service.delete_guest(guest_id)
@@ -402,7 +402,7 @@ async def submit_booking_to_ros1000(
         )
 
     # Get guests
-    guest_service = GuestService(db, tenant_id)
+    guest_service = GuestService(db)
     guests = await guest_service.get_guests_for_booking(booking_id)
 
     # Submit to ROS1000
@@ -463,7 +463,7 @@ async def cancel_ros1000_submission(
             detail="Tenant or booking not found"
         )
 
-    guest_service = GuestService(db, tenant_id)
+    guest_service = GuestService(db)
     guests = await guest_service.get_guests_for_booking(booking_id)
 
     ros1000_service = ROS1000Service(db, tenant)

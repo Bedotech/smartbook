@@ -136,7 +136,7 @@ async def create_group_leader(
     """
     booking, db = await get_booking_from_token(token, db)
 
-    guest_service = GuestService(db, booking.tenant_id)
+    guest_service = GuestService(db)
 
     try:
         leader = await guest_service.create_group_leader(
@@ -173,7 +173,7 @@ async def create_group_member(
     """
     booking, db = await get_booking_from_token(token, db)
 
-    guest_service = GuestService(db, booking.tenant_id)
+    guest_service = GuestService(db)
 
     try:
         member = await guest_service.create_group_member(
@@ -205,7 +205,7 @@ async def get_booking_guests(
     """
     booking, db = await get_booking_from_token(token, db)
 
-    guest_service = GuestService(db, booking.tenant_id)
+    guest_service = GuestService(db)
     guests = await guest_service.get_guests_for_booking(booking.id)
 
     return guests

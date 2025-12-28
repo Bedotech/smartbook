@@ -2,6 +2,9 @@
 Application configuration using Pydantic Settings.
 """
 
+import json
+from typing import Union
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,7 +33,19 @@ class Settings(BaseSettings):
     magic_link_token_bytes: int = 32
 
     # CORS
-    cors_origins: list[str] = ["http://localhost:3000"]
+    cors_origins: Union[list[str], str] = ["http://localhost:3000", "http://localhost:3001"]
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v):
+        """Parse CORS origins from JSON string or return list as-is."""
+        if isinstance(v, str):
+            try:
+                return json.loads(v)
+            except json.JSONDecodeError:
+                # If it's a single origin, wrap it in a list
+                return [v]
+        return v
 
     # ROS1000 (will be configured per tenant)
     ros1000_wsdl_url: str = "https://www.flussituristici.servizirl.it/..."

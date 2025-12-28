@@ -277,6 +277,19 @@ class GuestService:
                 "first name, last name, sex, and date of birth"
             )
 
+    async def get_guests_for_booking(self, booking_id: UUID) -> Sequence[GuestResponse]:
+        """
+        Get all guests for a booking.
+
+        Args:
+            booking_id: ID of the booking
+
+        Returns:
+            List of all guests for the booking
+        """
+        guests = await self.guest_repo.get_by_booking_id(booking_id)
+        return [GuestResponse.model_validate(guest) for guest in guests]
+
     async def validate_booking_completeness(self, booking_id: UUID) -> dict:
         """
         Validate that all required guest data is complete for ROS1000 transmission.
