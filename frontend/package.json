@@ -1,0 +1,22 @@
+{
+  "name": "smartbook-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Smartbook frontend workspace",
+  "scripts": {
+    "dev:guest": "pnpm --filter guest dev",
+    "dev:admin": "pnpm --filter admin dev",
+    "dev": "concurrently \"pnpm dev:guest\" \"pnpm dev:admin\"",
+    "build:guest": "pnpm --filter guest build",
+    "build:admin": "pnpm --filter admin build",
+    "build": "pnpm build:guest && pnpm build:admin",
+    "lint": "eslint .",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.6",
+    "concurrently": "^8.2.2",
+    "typescript": "^5.3.3"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

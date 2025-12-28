@@ -1,0 +1,133 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* Mobile-first responsive root sizing */
+  :root {
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  html {
+    @apply scroll-smooth;
+    /* Prevent text size adjustment on orientation change */
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    /* Touch action for better mobile scrolling */
+    touch-action: manipulation;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900 min-h-screen;
+    /* Safe area padding for notched devices */
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+      env(safe-area-inset-left);
+    /* Remove tap highlight on mobile */
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Better input styling for mobile */
+  input,
+  textarea,
+  select,
+  button {
+    font-family: inherit;
+    font-size: 100%;
+  }
+
+  /* Improve focus visibility for accessibility */
+  *:focus-visible {
+    @apply outline-2 outline-offset-2 outline-blue-500;
+  }
+
+  /* Disable focus outline for mouse users */
+  *:focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+@layer components {
+  /* Mobile-optimized form inputs */
+  .input-mobile {
+    @apply text-base;
+    /* Prevent iOS zoom on input focus */
+    font-size: max(16px, 1rem);
+  }
+
+  /* Safe area aware sticky elements */
+  .sticky-bottom-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .sticky-top-safe {
+    padding-top: env(safe-area-inset-top);
+  }
+}
+
+@layer utilities {
+  /* Touch-friendly minimum sizes */
+  .touch-target {
+    @apply min-h-[48px] min-w-[48px];
+  }
+
+  /* Prevent text selection for better mobile UX */
+  .no-select {
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    user-select: none;
+  }
+
+  /* Custom scrollbar for webkit browsers */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    @apply bg-gray-100 rounded;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    @apply bg-gray-300 rounded;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    @apply bg-gray-400;
+  }
+
+  /* Hide scrollbar but keep functionality */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* Mobile-specific media queries */
+@media (max-width: 640px) {
+  /* Slightly smaller text on very small devices */
+  :root {
+    font-size: 15px;
+  }
+}
+
+/* Landscape mobile optimization */
+@media (max-height: 500px) and (orientation: landscape) {
+  /* Reduce padding on short viewports */
+  body {
+    @apply py-2;
+  }
+}
+
+/* PWA standalone mode detection */
+@media (display-mode: standalone) {
+  body {
+    /* Additional padding for PWA mode if needed */
+    @apply select-none;
+  }
+}
