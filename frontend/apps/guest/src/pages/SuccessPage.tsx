@@ -1,14 +1,18 @@
 import { useParams } from 'react-router-dom'
-import { CheckCircle, Download, Share2 } from 'lucide-react'
+import { CheckCircle, Download, Share2, Building2 } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { Card, CardHeader, CardTitle, CardContent, Button } from '@smartbook/ui'
-import { useBooking } from '../hooks'
+import { useBooking, useProperty } from '../hooks'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorDisplay } from '../components/ErrorDisplay'
 
 export default function SuccessPage() {
   const { token } = useParams<{ token: string }>()
-  const { data: booking, isLoading, error } = useBooking(token!)
+  const { data: booking, isLoading: bookingLoading, error: bookingError } = useBooking(token!)
+  const { data: property, isLoading: propertyLoading } = useProperty(token!)
+
+  const isLoading = bookingLoading || propertyLoading
+  const error = bookingError
 
   // Generate QR code value - includes the full check-in URL
   const qrCodeValue = `${window.location.origin}/s/${token}`
@@ -71,6 +75,19 @@ export default function SuccessPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-green-50 to-blue-50 p-4 flex items-center justify-center">
       <div className="max-w-lg w-full mx-auto space-y-6">
+        {/* Property Header */}
+        {property && (
+          <div className="bg-white shadow-sm border border-gray-200 rounded-lg px-4 py-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{property.name}</p>
+                <p className="text-xs text-gray-500">Facility Code: {property.facility_code}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Success Header */}
         <div className="text-center">
           <div className="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-full mb-4">

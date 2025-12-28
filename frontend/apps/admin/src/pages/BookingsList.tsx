@@ -5,21 +5,30 @@ import { adminApi } from '@smartbook/api'
 import { Card, CardContent, Badge, Button, Input } from '@smartbook/ui'
 import type { Booking, BookingStatus } from '@smartbook/types'
 import Layout from '../components/Layout'
+import { useProperty } from '../contexts/PropertyContext'
 
 export default function BookingsList() {
+  const { selectedPropertyId } = useProperty()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<'all' | BookingStatus>('all')
 
   useEffect(() => {
-    loadBookings()
-  }, [])
+    if (selectedPropertyId) {
+      loadBookings()
+    } else {
+      // No property selected, stop loading
+      setLoading(false)
+    }
+  }, [selectedPropertyId])
 
   const loadBookings = async () => {
+    if (!selectedPropertyId) return
+
     try {
       setLoading(true)
-      const data = await adminApi.getBookings({})
+      const data = await adminApi.getBookings(selectedPropertyId, {})
       setBookings(data)
     } catch (err) {
       console.error('Failed to load bookings:', err)
@@ -94,6 +103,45 @@ export default function BookingsList() {
     complete: bookings.filter((b) => b.status === 'complete').length,
     synced: bookings.filter((b) => b.status === 'synced').length,
     error: bookings.filter((b) => b.status === 'error').length,
+  }
+
+  if (loading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <Loader2 className="w-12 h-12 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-slate-600 font-medium">Loading bookings...</p>
+          </div>
+        </div>
+      </Layout>
+    )
+  }
+
+  if (!selectedPropertyId) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <Card className="max-w-md text-center">
+            <CardContent>
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Calendar className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">No Property Selected</h3>
+              <p className="text-gray-600 mb-6">
+                You don't have any properties assigned. Please contact your administrator to assign you to a property.
+              </p>
+              <Link
+                to="/properties"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                View Properties
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
+      </Layout>
+    )
   }
 
   return (

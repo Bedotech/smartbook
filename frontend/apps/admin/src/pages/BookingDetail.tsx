@@ -15,9 +15,11 @@ import {
 import { adminApi } from '@smartbook/api'
 import type { Booking, Guest, TaxCalculationResult, BookingProgress } from '@smartbook/types'
 import Layout from '../components/Layout'
+import { useProperty } from '../contexts/PropertyContext'
 
 export default function BookingDetail() {
   const { id } = useParams<{ id: string }>()
+  const { selectedPropertyId } = useProperty()
   const [booking, setBooking] = useState<Booking | null>(null)
   const [guests, setGuests] = useState<Guest[]>([])
   const [progress, setProgress] = useState<BookingProgress | null>(null)
@@ -27,21 +29,21 @@ export default function BookingDetail() {
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
-    if (id) {
+    if (id && selectedPropertyId) {
       loadBookingDetails()
     }
-  }, [id])
+  }, [id, selectedPropertyId])
 
   const loadBookingDetails = async () => {
-    if (!id) return
+    if (!id || !selectedPropertyId) return
 
     try {
       setLoading(true)
       setError(null)
       const [bookingData, guestsData, progressData] = await Promise.all([
-        adminApi.getBooking(id),
-        adminApi.getGuests(id),
-        adminApi.getBookingProgress(id),
+        adminApi.getBooking(selectedPropertyId, id),
+        adminApi.getGuests(selectedPropertyId, id),
+        adminApi.getBookingProgress(selectedPropertyId, id),
       ])
       setBooking(bookingData)
       setGuests(guestsData)
@@ -54,11 +56,11 @@ export default function BookingDetail() {
   }
 
   const handleCalculateTax = async () => {
-    if (!id) return
+    if (!id || !selectedPropertyId) return
 
     try {
       setSubmitting(true)
-      const result = await adminApi.calculateTax(id)
+      const result = await adminApi.calculateTax(selectedPropertyId, id)
       setTaxResult(result)
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to calculate tax')
@@ -68,12 +70,12 @@ export default function BookingDetail() {
   }
 
   const handleSubmitROS1000 = async () => {
-    if (!id) return
+    if (!id || !selectedPropertyId) return
     if (!confirm('Submit this booking to ROS1000?')) return
 
     try {
       setSubmitting(true)
-      await adminApi.submitROS1000(id)
+      await adminApi.submitROS1000(selectedPropertyId, id)
       alert('Successfully submitted to ROS1000')
       loadBookingDetails()
     } catch (err) {
@@ -84,12 +86,12 @@ export default function BookingDetail() {
   }
 
   const handleCancelROS1000 = async () => {
-    if (!id) return
+    if (!id || !selectedPropertyId) return
     if (!confirm('Cancel this booking in ROS1000?')) return
 
     try {
       setSubmitting(true)
-      await adminApi.cancelROS1000(id)
+      await adminApi.cancelROS1000(selectedPropertyId, id)
       alert('Successfully cancelled in ROS1000')
       loadBookingDetails()
     } catch (err) {

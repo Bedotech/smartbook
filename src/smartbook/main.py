@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from smartbook.config import settings
 from smartbook.domain.database import engine
-from smartbook.api.routes import health, guest_portal, admin
+from smartbook.api.routes import health, guest_portal, admin, auth, users
 
 
 @asynccontextmanager
@@ -45,5 +45,7 @@ app.add_middleware(
 
 # Include routers
 app.include_router(health.router, prefix="/api", tags=["Health"])
+app.include_router(auth.router, prefix="/api/auth", tags=["Authentication"])
 app.include_router(guest_portal.router, prefix="/api/guest", tags=["Guest Portal"])
 app.include_router(admin.router, prefix="/api/admin", tags=["Admin"])
+app.include_router(users.router, prefix="/api/admin", tags=["User Management"])

@@ -27,9 +27,9 @@ class TaxRule(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
-    # Multi-tenant isolation
-    tenant_id: Mapped[UUID] = mapped_column(
-        ForeignKey("tenants.id", ondelete="CASCADE"),
+    # Multi-tenant isolation (property-based)
+    property_id: Mapped[UUID] = mapped_column(
+        ForeignKey("properties.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
@@ -79,7 +79,7 @@ class TaxRule(Base):
     )
 
     # Relationships
-    tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="tax_rules")
+    tenant: Mapped["Tenant"] = relationship("Tenant", back_populates="tax_rules", foreign_keys=[property_id])
 
     def __repr__(self) -> str:
         return f"<TaxRule {self.base_rate_per_night}€ (valid from {self.valid_from})>"

@@ -3,8 +3,10 @@ import { FileText, Download, Calendar, TrendingUp, Loader2, AlertCircle } from '
 import { adminApi } from '@smartbook/api'
 import type { TaxReport } from '@smartbook/types'
 import Layout from '../components/Layout'
+import { useProperty } from '../contexts/PropertyContext'
 
 export default function TaxReports() {
+  const { selectedPropertyId } = useProperty()
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth() + 1
   const currentQuarter = Math.ceil(currentMonth / 3)
@@ -32,15 +34,17 @@ export default function TaxReports() {
   const years = Array.from({ length: 5 }, (_, i) => currentYear - i)
 
   const loadReport = async () => {
+    if (!selectedPropertyId) return
+
     try {
       setLoading(true)
       setError(null)
       let reportData: TaxReport
 
       if (reportType === 'monthly') {
-        reportData = await adminApi.getMonthlyReport(selectedYear, selectedMonth)
+        reportData = await adminApi.getMonthlyReport(selectedPropertyId, selectedYear, selectedMonth)
       } else {
-        reportData = await adminApi.getQuarterlyReport(selectedYear, selectedQuarter)
+        reportData = await adminApi.getQuarterlyReport(selectedPropertyId, selectedYear, selectedQuarter)
       }
 
       setReport(reportData)

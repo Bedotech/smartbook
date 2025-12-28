@@ -9,10 +9,9 @@ from datetime import date
 from typing import Sequence
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
+from fastapi import APIRouter, HTTPException, Query, status
 
-from smartbook.domain.database import get_db
+from smartbook.api.dependencies import CurrentUser, AdminUser, UserPropertyIds, DbSession
 from smartbook.domain.schemas.booking import (
     BookingCreate,
     BookingResponse,
@@ -42,22 +41,25 @@ from smartbook.repositories.compliance_record import ComplianceRecordRepository
 router = APIRouter()
 
 
-# TODO: Add JWT authentication dependency
-# For now, we'll use a placeholder that extracts tenant_id from headers
-async def get_current_tenant_id() -> UUID:
-    """
-    Get current authenticated tenant ID.
+# Helper function for property access validation
+async def validate_property_access_helper(
+    property_id: UUID,
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+) -> UUID:
+    """Validate user has access to property."""
+    from smartbook.repositories.user_property_assignment import UserPropertyAssignmentRepository
 
-    In production, this would:
-    1. Validate JWT token
-    2. Extract tenant_id from token claims
-    3. Verify tenant is active
+    assignment_repo = UserPropertyAssignmentRepository(db)
+    property_ids = await assignment_repo.get_property_ids_for_user(user.id)
 
-    For now, this is a placeholder.
-    """
-    # Placeholder - in production this would decode JWT
-    from uuid import UUID
-    return UUID('00000000-0000-0000-0000-000000000000')
+    if property_id not in property_ids:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have access to this property"
+        )
+
+    return property_id
 
 
 # ============================================================================
@@ -66,32 +68,37 @@ async def get_current_tenant_id() -> UUID:
 
 @router.get("/bookings", response_model=Sequence[BookingResponse])
 async def list_bookings(
+    property_id: UUID = Query(..., description="Property ID to list bookings for"),
     status: BookingStatus | None = None,
     check_in_from: date | None = None,
     check_in_to: date | None = None,
     limit: int = Query(default=50, le=100),
     offset: int = Query(default=0, ge=0),
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
-    List all bookings for the current tenant.
+    List all bookings for a specific property.
 
-    Supports filtering by status and check-in date range.
+    User must have access to the requested property.
 
     Args:
+        property_id: Property ID to list bookings for
         status: Filter by booking status
         check_in_from: Filter bookings checking in after this date
         check_in_to: Filter bookings checking in before this date
         limit: Maximum number of results
         offset: Pagination offset
-        tenant_id: Current tenant ID (from JWT)
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         List of bookings
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
 
     # TODO: Implement repository methods for filtering
     # For now, get all and filter in Python (inefficient for production)
@@ -115,23 +122,29 @@ async def list_bookings(
 @router.post("/bookings", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
 async def create_booking(
     booking_data: BookingCreate,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID for the booking"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
-    Create a new booking.
+    Create a new booking for a specific property.
 
     Generates magic link token for guest access.
+    User must have access to the property.
 
     Args:
         booking_data: Booking information
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID for the booking
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Created booking with magic link
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
 
     try:
         booking = await booking_service.create_booking(booking_data)
@@ -146,21 +159,26 @@ async def create_booking(
 @router.get("/bookings/{booking_id}", response_model=BookingResponse)
 async def get_booking(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Get booking by ID.
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Booking details
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
 
     booking = await booking_service.get_booking_by_id(booking_id)
     if not booking:
@@ -176,8 +194,9 @@ async def get_booking(
 async def update_booking(
     booking_id: UUID,
     booking_data: BookingUpdate,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Update booking details.
@@ -185,13 +204,17 @@ async def update_booking(
     Args:
         booking_id: Booking ID
         booking_data: Updated booking data
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Updated booking
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
 
     try:
         booking = await booking_service.update_booking(booking_id, booking_data)
@@ -211,8 +234,9 @@ async def update_booking(
 @router.delete("/bookings/{booking_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_booking(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Delete a booking.
@@ -221,10 +245,14 @@ async def delete_booking(
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
 
     try:
         success = await booking_service.delete_booking(booking_id)
@@ -243,21 +271,26 @@ async def delete_booking(
 @router.get("/bookings/{booking_id}/progress", response_model=BookingProgressResponse)
 async def get_booking_progress(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Get booking progress (guests entered).
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Progress information
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
     progress = await booking_service.get_booking_progress(booking_id)
 
     return progress
@@ -270,20 +303,25 @@ async def get_booking_progress(
 @router.get("/bookings/{booking_id}/guests", response_model=Sequence[GuestResponse])
 async def get_booking_guests(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Get all guests for a booking.
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         List of guests
     """
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
     guest_service = GuestService(db)
     guests = await guest_service.get_guests_for_booking(booking_id)
 
@@ -294,8 +332,9 @@ async def get_booking_guests(
 async def update_guest(
     guest_id: UUID,
     guest_data: GuestUpdate,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Update guest details.
@@ -303,12 +342,16 @@ async def update_guest(
     Args:
         guest_id: Guest ID
         guest_data: Updated guest data
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Updated guest
     """
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
     guest_service = GuestService(db)
 
     try:
@@ -329,17 +372,22 @@ async def update_guest(
 @router.delete("/guests/{guest_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_guest(
     guest_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Delete a guest.
 
     Args:
         guest_id: Guest ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
     """
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
     guest_service = GuestService(db)
 
     try:
@@ -363,8 +411,9 @@ async def delete_guest(
 @router.post("/bookings/{booking_id}/submit-ros1000")
 async def submit_booking_to_ros1000(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Submit booking to ROS1000/Alloggiati Web system.
@@ -374,24 +423,28 @@ async def submit_booking_to_ros1000(
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Submission response with receipt number
     """
-    # Get tenant and booking
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    # Get property and booking
     from smartbook.repositories.tenant import TenantRepository
     from smartbook.repositories.booking import BookingRepository
 
-    tenant_repo = TenantRepository(db, tenant_id)
-    booking_repo = BookingRepository(db, tenant_id)
+    property_repo = TenantRepository(db)
+    booking_repo = BookingRepository(db, property_id)
 
-    tenant = await tenant_repo.get_by_id(tenant_id)
-    if not tenant:
+    property = await property_repo.get_by_id(property_id)
+    if not property:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
+            detail="Property not found"
         )
 
     booking = await booking_repo.get_by_id(booking_id)
@@ -406,7 +459,7 @@ async def submit_booking_to_ros1000(
     guests = await guest_service.get_guests_for_booking(booking_id)
 
     # Submit to ROS1000
-    ros1000_service = ROS1000Service(db, tenant)
+    ros1000_service = ROS1000Service(db, property)
 
     try:
         response = await ros1000_service.submit_booking(booking, guests)
@@ -434,39 +487,44 @@ async def submit_booking_to_ros1000(
 @router.post("/bookings/{booking_id}/cancel-ros1000")
 async def cancel_ros1000_submission(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Cancel/correct a previous ROS1000 submission.
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Cancellation response
     """
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
     from smartbook.repositories.tenant import TenantRepository
     from smartbook.repositories.booking import BookingRepository
 
-    tenant_repo = TenantRepository(db, tenant_id)
-    booking_repo = BookingRepository(db, tenant_id)
+    property_repo = TenantRepository(db)
+    booking_repo = BookingRepository(db, property_id)
 
-    tenant = await tenant_repo.get_by_id(tenant_id)
+    property = await property_repo.get_by_id(property_id)
     booking = await booking_repo.get_by_id(booking_id)
 
-    if not tenant or not booking:
+    if not property or not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant or booking not found"
+            detail="Property or booking not found"
         )
 
     guest_service = GuestService(db)
     guests = await guest_service.get_guests_for_booking(booking_id)
 
-    ros1000_service = ROS1000Service(db, tenant)
+    ros1000_service = ROS1000Service(db, property)
 
     try:
         response = await ros1000_service.cancel_submission(booking, guests)
@@ -486,26 +544,31 @@ async def cancel_ros1000_submission(
 
 @router.get("/compliance/records", response_model=Sequence[ComplianceRecordResponse])
 async def list_compliance_records(
+    property_id: UUID = Query(..., description="Property ID"),
     booking_id: UUID | None = None,
     status: ComplianceStatus | None = None,
     limit: int = Query(default=50, le=100),
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     List compliance records (5-year retention).
 
     Args:
+        property_id: Property ID
         booking_id: Filter by booking ID
         status: Filter by compliance status
         limit: Maximum number of results
-        tenant_id: Current tenant ID (from JWT)
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         List of compliance records
     """
-    compliance_repo = ComplianceRecordRepository(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    compliance_repo = ComplianceRecordRepository(db, property_id)
 
     if booking_id:
         # Get records for specific booking
@@ -520,32 +583,37 @@ async def list_compliance_records(
 @router.post("/compliance/records/{record_id}/retry")
 async def retry_failed_submission(
     record_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Retry a failed ROS1000 submission.
 
     Args:
         record_id: Compliance record ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Retry response
     """
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
     from smartbook.repositories.tenant import TenantRepository
 
-    tenant_repo = TenantRepository(db, tenant_id)
-    tenant = await tenant_repo.get_by_id(tenant_id)
+    property_repo = TenantRepository(db)
+    property = await property_repo.get_by_id(property_id)
 
-    if not tenant:
+    if not property:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Tenant not found"
+            detail="Property not found"
         )
 
-    ros1000_service = ROS1000Service(db, tenant)
+    ros1000_service = ROS1000Service(db, property)
 
     try:
         response = await ros1000_service.retry_failed_submission(record_id)
@@ -570,23 +638,28 @@ async def retry_failed_submission(
 @router.post("/bookings/{booking_id}/calculate-tax")
 async def calculate_booking_tax(
     booking_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Calculate city tax for a booking.
 
     Args:
         booking_id: Booking ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Tax calculation result
     """
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
     from smartbook.repositories.booking import BookingRepository
 
-    booking_repo = BookingRepository(db, tenant_id)
+    booking_repo = BookingRepository(db, property_id)
     booking = await booking_repo.get_by_id(booking_id)
 
     if not booking:
@@ -595,7 +668,7 @@ async def calculate_booking_tax(
             detail="Booking not found"
         )
 
-    tax_service = TaxCalculationService(db, tenant_id)
+    tax_service = TaxCalculationService(db, property_id)
 
     result = await tax_service.calculate_tax_for_booking(
         booking_id=booking_id,
@@ -628,24 +701,29 @@ async def calculate_booking_tax(
 
 @router.get("/tax/reports/monthly")
 async def generate_monthly_tax_report(
-    year: int,
-    month: int,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    year: int = Query(...),
+    month: int = Query(...),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Generate monthly tax report.
 
     Args:
+        property_id: Property ID
         year: Year (e.g., 2024)
         month: Month (1-12)
-        tenant_id: Current tenant ID (from JWT)
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Monthly tax report with Italian formatting
     """
-    tax_service = TaxCalculationService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    tax_service = TaxCalculationService(db, property_id)
     report_generator = TaxReportGenerator(tax_service)
 
     report = await report_generator.generate_monthly_report(year, month)
@@ -677,24 +755,29 @@ async def generate_monthly_tax_report(
 
 @router.get("/tax/reports/quarterly")
 async def generate_quarterly_tax_report(
-    year: int,
+    property_id: UUID = Query(..., description="Property ID"),
+    year: int = Query(...),
     quarter: int = Query(..., ge=1, le=4),
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Generate quarterly tax report.
 
     Args:
+        property_id: Property ID
         year: Year (e.g., 2024)
         quarter: Quarter (1-4)
-        tenant_id: Current tenant ID (from JWT)
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Quarterly tax report
     """
-    tax_service = TaxCalculationService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    tax_service = TaxCalculationService(db, property_id)
     report_generator = TaxReportGenerator(tax_service)
 
     report = await report_generator.generate_quarterly_report(year, quarter)
@@ -729,20 +812,25 @@ async def generate_quarterly_tax_report(
 
 @router.get("/tax/rules", response_model=Sequence[TaxRuleResponse])
 async def list_tax_rules(
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
-    List all tax rules for the tenant.
+    List all tax rules for the property.
 
     Args:
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         List of tax rules
     """
-    tax_rule_repo = TaxRuleRepository(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    tax_rule_repo = TaxRuleRepository(db, property_id)
     rules = await tax_rule_repo.get_all()
 
     return rules
@@ -751,21 +839,26 @@ async def list_tax_rules(
 @router.post("/tax/rules", response_model=TaxRuleResponse, status_code=status.HTTP_201_CREATED)
 async def create_tax_rule(
     rule_data: TaxRuleCreate,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Create a new tax rule.
 
     Args:
         rule_data: Tax rule data
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Created tax rule
     """
-    tax_rule_repo = TaxRuleRepository(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    tax_rule_repo = TaxRuleRepository(db, property_id)
     rule = await tax_rule_repo.create(rule_data)
 
     return rule
@@ -775,8 +868,9 @@ async def create_tax_rule(
 async def update_tax_rule(
     rule_id: UUID,
     rule_data: TaxRuleUpdate,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Update a tax rule.
@@ -784,13 +878,17 @@ async def update_tax_rule(
     Args:
         rule_id: Tax rule ID
         rule_data: Updated tax rule data
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Updated tax rule
     """
-    tax_rule_repo = TaxRuleRepository(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    tax_rule_repo = TaxRuleRepository(db, property_id)
     rule = await tax_rule_repo.update(rule_id, rule_data)
 
     if not rule:
@@ -805,18 +903,23 @@ async def update_tax_rule(
 @router.delete("/tax/rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_tax_rule(
     rule_id: UUID,
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
     Delete a tax rule.
 
     Args:
         rule_id: Tax rule ID
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
     """
-    tax_rule_repo = TaxRuleRepository(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    tax_rule_repo = TaxRuleRepository(db, property_id)
     success = await tax_rule_repo.delete(rule_id)
 
     if not success:
@@ -832,20 +935,25 @@ async def delete_tax_rule(
 
 @router.get("/dashboard/stats")
 async def get_dashboard_stats(
-    tenant_id: UUID = Depends(get_current_tenant_id),
-    db: AsyncSession = Depends(get_db),
+    property_id: UUID = Query(..., description="Property ID"),
+    user: CurrentUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
 ):
     """
-    Get dashboard statistics.
+    Get dashboard statistics for a specific property.
 
     Args:
-        tenant_id: Current tenant ID (from JWT)
+        property_id: Property ID
+        user: Current authenticated user (from JWT)
         db: Database session
 
     Returns:
         Dashboard statistics
     """
-    booking_service = BookingService(db, tenant_id)
+    # Validate property access
+    await validate_property_access_helper(property_id, user, db)
+
+    booking_service = BookingService(db, property_id)
 
     # Get all bookings
     all_bookings = await booking_service.get_all_bookings()
@@ -868,3 +976,432 @@ async def get_dashboard_stats(
             if total_bookings > 0 else 0.0
         ),
     }
+
+
+# ============================================================================
+# PROPERTY MANAGEMENT (Admin Only)
+# ============================================================================
+
+@router.get("/properties", response_model=list)
+async def list_properties(
+    skip: int = Query(default=0, ge=0),
+    limit: int = Query(default=50, le=100),
+    search: str | None = Query(None, description="Search by name or facility code"),
+    is_active: bool | None = Query(None, description="Filter by active status"),
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    List all properties (admin only).
+
+    Args:
+        skip: Number of records to skip
+        limit: Maximum number of records to return
+        search: Search term for name or facility code
+        is_active: Filter by active status
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        List of properties
+    """
+    from smartbook.repositories.tenant import TenantRepository
+
+    tenant_repo = TenantRepository(db)
+    properties = await tenant_repo.get_all(limit=limit, offset=skip)
+
+    # Apply filters
+    if search:
+        search_lower = search.lower()
+        properties = [
+            p for p in properties
+            if search_lower in p.name.lower() or search_lower in p.facility_code.lower()
+        ]
+
+    if is_active is not None:
+        properties = [p for p in properties if p.is_active == is_active]
+
+    # Convert to dict for serialization
+    return [
+        {
+            "id": str(p.id),
+            "name": p.name,
+            "facility_code": p.facility_code,
+            "email": p.email,
+            "phone": p.phone,
+            "ros1000_username": p.ros1000_username,
+            "ros1000_ws_key": p.ros1000_ws_key,
+            "is_active": p.is_active,
+            "created_at": p.created_at.isoformat() if p.created_at else None,
+            "updated_at": p.updated_at.isoformat() if p.updated_at else None,
+        }
+        for p in properties
+    ]
+
+
+@router.get("/properties/{property_id}")
+async def get_property(
+    property_id: UUID,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Get a single property by ID (admin only).
+
+    Args:
+        property_id: Property ID
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        Property details
+    """
+    from smartbook.repositories.tenant import TenantRepository
+
+    tenant_repo = TenantRepository(db)
+    property_obj = await tenant_repo.get_by_id(property_id)
+
+    if not property_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+    return {
+        "id": str(property_obj.id),
+        "name": property_obj.name,
+        "facility_code": property_obj.facility_code,
+        "email": property_obj.email,
+        "phone": property_obj.phone,
+        "ros1000_username": property_obj.ros1000_username,
+        "ros1000_ws_key": property_obj.ros1000_ws_key,
+        "is_active": property_obj.is_active,
+        "created_at": property_obj.created_at.isoformat() if property_obj.created_at else None,
+        "updated_at": property_obj.updated_at.isoformat() if property_obj.updated_at else None,
+    }
+
+
+@router.post("/properties", status_code=status.HTTP_201_CREATED)
+async def create_property(
+    property_data: dict,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Create a new property (admin only).
+
+    Args:
+        property_data: Property creation data
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        Created property
+    """
+    from smartbook.repositories.tenant import TenantRepository
+    from smartbook.domain.models.tenant import Tenant
+
+    tenant_repo = TenantRepository(db)
+
+    # Check if facility code already exists
+    existing = await tenant_repo.get_by_facility_code(property_data.get("facility_code"))
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Property with this facility code already exists"
+        )
+
+    # Create property
+    new_property = Tenant(
+        name=property_data["name"],
+        facility_code=property_data["facility_code"],
+        email=property_data["email"],
+        phone=property_data.get("phone"),
+        ros1000_username=property_data.get("ros1000_username"),
+        ros1000_password=property_data.get("ros1000_password"),
+        ros1000_ws_key=property_data.get("ros1000_ws_key"),
+        is_active=True
+    )
+
+    db.add(new_property)
+    await db.commit()
+    await db.refresh(new_property)
+
+    return {
+        "id": str(new_property.id),
+        "name": new_property.name,
+        "facility_code": new_property.facility_code,
+        "email": new_property.email,
+        "phone": new_property.phone,
+        "ros1000_username": new_property.ros1000_username,
+        "ros1000_ws_key": new_property.ros1000_ws_key,
+        "is_active": new_property.is_active,
+        "created_at": new_property.created_at.isoformat() if new_property.created_at else None,
+        "updated_at": new_property.updated_at.isoformat() if new_property.updated_at else None,
+    }
+
+
+@router.put("/properties/{property_id}")
+async def update_property(
+    property_id: UUID,
+    property_data: dict,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Update a property (admin only).
+
+    Args:
+        property_id: Property ID
+        property_data: Updated property data
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        Updated property
+    """
+    from smartbook.repositories.tenant import TenantRepository
+
+    tenant_repo = TenantRepository(db)
+    property_obj = await tenant_repo.get_by_id(property_id)
+
+    if not property_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+    # Check if facility code is being changed and if it's already in use
+    if "facility_code" in property_data and property_data["facility_code"] != property_obj.facility_code:
+        existing = await tenant_repo.get_by_facility_code(property_data["facility_code"])
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Property with this facility code already exists"
+            )
+
+    # Update fields
+    for key, value in property_data.items():
+        if hasattr(property_obj, key):
+            setattr(property_obj, key, value)
+
+    await db.commit()
+    await db.refresh(property_obj)
+
+    return {
+        "id": str(property_obj.id),
+        "name": property_obj.name,
+        "facility_code": property_obj.facility_code,
+        "email": property_obj.email,
+        "phone": property_obj.phone,
+        "ros1000_username": property_obj.ros1000_username,
+        "ros1000_ws_key": property_obj.ros1000_ws_key,
+        "is_active": property_obj.is_active,
+        "created_at": property_obj.created_at.isoformat() if property_obj.created_at else None,
+        "updated_at": property_obj.updated_at.isoformat() if property_obj.updated_at else None,
+    }
+
+
+@router.patch("/properties/{property_id}/activate", status_code=status.HTTP_200_OK)
+async def activate_property(
+    property_id: UUID,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Activate a property (admin only).
+
+    Args:
+        property_id: Property ID
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    from smartbook.repositories.tenant import TenantRepository
+
+    tenant_repo = TenantRepository(db)
+    property_obj = await tenant_repo.get_by_id(property_id)
+
+    if not property_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+    property_obj.is_active = True
+    await db.commit()
+
+    return {"message": "Property activated successfully"}
+
+
+@router.patch("/properties/{property_id}/deactivate", status_code=status.HTTP_200_OK)
+async def deactivate_property(
+    property_id: UUID,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Deactivate a property (admin only).
+
+    Args:
+        property_id: Property ID
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    from smartbook.repositories.tenant import TenantRepository
+
+    tenant_repo = TenantRepository(db)
+    property_obj = await tenant_repo.get_by_id(property_id)
+
+    if not property_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+    property_obj.is_active = False
+    await db.commit()
+
+    return {"message": "Property deactivated successfully"}
+
+
+@router.get("/properties/{property_id}/users")
+async def list_property_users(
+    property_id: UUID,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    List users assigned to a property (admin only).
+
+    Args:
+        property_id: Property ID
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        List of assigned users
+    """
+    from smartbook.repositories.user_property_assignment import UserPropertyAssignmentRepository
+    from smartbook.repositories.user import UserRepository
+
+    assignment_repo = UserPropertyAssignmentRepository(db)
+    user_repo = UserRepository(db)
+
+    # Get all assignments for this property
+    assignments = await assignment_repo.get_assignments_for_property(property_id)
+
+    # Get user details for each assignment
+    users = []
+    for assignment in assignments:
+        user = await user_repo.get_by_id(assignment.user_id)
+        if user:
+            users.append({
+                "id": str(user.id),
+                "email": user.email,
+                "name": user.name,
+                "role": user.role,
+                "assigned_at": assignment.assigned_at.isoformat(),
+            })
+
+    return users
+
+
+@router.post("/properties/{property_id}/users/{user_id}", status_code=status.HTTP_201_CREATED)
+async def assign_user_to_property(
+    property_id: UUID,
+    user_id: UUID,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Assign a user to a property (admin only).
+
+    Args:
+        property_id: Property ID
+        user_id: User ID to assign
+        admin: Admin user (from JWT)
+        db: Database session
+
+    Returns:
+        Success message
+    """
+    from smartbook.repositories.user_property_assignment import UserPropertyAssignmentRepository
+    from smartbook.repositories.user import UserRepository
+    from smartbook.repositories.tenant import TenantRepository
+    from smartbook.domain.models.user_property_assignment import UserPropertyAssignment
+
+    # Verify property exists
+    tenant_repo = TenantRepository(db)
+    property_obj = await tenant_repo.get_by_id(property_id)
+    if not property_obj:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+    # Verify user exists
+    user_repo = UserRepository(db)
+    user = await user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User not found"
+        )
+
+    # Check if assignment already exists
+    assignment_repo = UserPropertyAssignmentRepository(db)
+    existing = await assignment_repo.get_assignment(user_id, property_id)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User is already assigned to this property"
+        )
+
+    # Create assignment
+    assignment = UserPropertyAssignment(
+        user_id=user_id,
+        property_id=property_id,
+        assigned_by_user_id=admin.id
+    )
+
+    db.add(assignment)
+    await db.commit()
+
+    return {"message": "User assigned to property successfully"}
+
+
+@router.delete("/properties/{property_id}/users/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_user_from_property(
+    property_id: UUID,
+    user_id: UUID,
+    admin: AdminUser = None,  # type: ignore
+    db: DbSession = None,  # type: ignore
+):
+    """
+    Remove a user from a property (admin only).
+
+    Args:
+        property_id: Property ID
+        user_id: User ID to remove
+        admin: Admin user (from JWT)
+        db: Database session
+    """
+    from smartbook.repositories.user_property_assignment import UserPropertyAssignmentRepository
+
+    assignment_repo = UserPropertyAssignmentRepository(db)
+    assignment = await assignment_repo.get_assignment(user_id, property_id)
+
+    if not assignment:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User assignment not found"
+        )
+
+    await db.delete(assignment)
+    await db.commit()

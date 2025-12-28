@@ -23,6 +23,8 @@ from smartbook.domain.models import (  # noqa: F401
     ComplianceRecord,
     Municipality,
     Country,
+    User,
+    UserPropertyAssignment,
 )
 
 # this is the Alembic Config object, which provides

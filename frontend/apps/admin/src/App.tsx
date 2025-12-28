@@ -1,6 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import { Suspense, lazy } from 'react'
 import { Loader2 } from 'lucide-react'
+import ProtectedRoute from './components/ProtectedRoute'
+import Login from './pages/Login'
+import AuthCallback from './pages/AuthCallback'
+import { PropertyProvider } from './contexts/PropertyContext'
 
 const Dashboard = lazy(() => import('./pages/Dashboard'))
 const BookingsList = lazy(() => import('./pages/BookingsList'))
@@ -8,6 +12,11 @@ const NewBooking = lazy(() => import('./pages/NewBooking'))
 const BookingDetail = lazy(() => import('./pages/BookingDetail'))
 const TaxReports = lazy(() => import('./pages/TaxReports'))
 const Settings = lazy(() => import('./pages/Settings'))
+const UserManagement = lazy(() => import('./pages/UserManagement'))
+const PropertiesList = lazy(() => import('./pages/PropertiesList'))
+const CreateProperty = lazy(() => import('./pages/CreateProperty'))
+const EditProperty = lazy(() => import('./pages/EditProperty'))
+const PropertyDetail = lazy(() => import('./pages/PropertyDetail'))
 
 function LoadingSpinner() {
   return (
@@ -20,16 +29,105 @@ function LoadingSpinner() {
 function App() {
   return (
     <BrowserRouter>
-      <Suspense fallback={<LoadingSpinner />}>
-        <Routes>
-          <Route path="/" element={<Dashboard />} />
-          <Route path="/bookings" element={<BookingsList />} />
-          <Route path="/bookings/new" element={<NewBooking />} />
-          <Route path="/bookings/:id" element={<BookingDetail />} />
-          <Route path="/tax/reports" element={<TaxReports />} />
-          <Route path="/settings" element={<Settings />} />
+      <PropertyProvider>
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+          <Route path="/auth/callback" element={<AuthCallback />} />
+
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                <Dashboard />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bookings"
+            element={
+              <ProtectedRoute>
+                <BookingsList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bookings/new"
+            element={
+              <ProtectedRoute>
+                <NewBooking />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/bookings/:id"
+            element={
+              <ProtectedRoute>
+                <BookingDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/tax/reports"
+            element={
+              <ProtectedRoute>
+                <TaxReports />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties"
+            element={
+              <ProtectedRoute>
+                <PropertiesList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/new"
+            element={
+              <ProtectedRoute>
+                <CreateProperty />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/:id"
+            element={
+              <ProtectedRoute>
+                <PropertyDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/properties/:id/edit"
+            element={
+              <ProtectedRoute>
+                <EditProperty />
+              </ProtectedRoute>
+            }
+          />
         </Routes>
       </Suspense>
+      </PropertyProvider>
     </BrowserRouter>
   )
 }

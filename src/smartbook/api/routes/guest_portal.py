@@ -91,6 +91,48 @@ async def get_booking_by_token(
     return booking
 
 
+@router.get("/booking/{token}/property")
+async def get_property_for_booking(
+    token: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Get property information for a booking (via magic link).
+
+    This allows the guest app to display the property name
+    in the check-in flow header.
+
+    Args:
+        token: Magic link token
+        db: Database session
+
+    Returns:
+        Property information (id, name, facility_code)
+    """
+    from smartbook.repositories.tenant import TenantRepository
+
+    # Get booking from token
+    booking_data = await get_booking_from_token(token, db)
+    booking, _ = booking_data
+
+    # Get property using the tenant_id from booking
+    # Note: tenant_id in booking is actually property_id after our migration
+    property_repo = TenantRepository(db)
+    property = await property_repo.get_by_id(booking.tenant_id)
+
+    if not property:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Property not found"
+        )
+
+    return {
+        "id": str(property.id),
+        "name": property.name,
+        "facility_code": property.facility_code,
+    }
+
+
 @router.get("/booking/{token}/progress", response_model=BookingProgressResponse)
 async def get_booking_progress(
     token: str,

@@ -3,8 +3,10 @@ import { Plus, Edit, Trash2, Save, X, Loader2, AlertCircle, DollarSign } from 'l
 import { adminApi } from '@smartbook/api'
 import type { TaxRule, TaxRuleCreate } from '@smartbook/types'
 import Layout from '../components/Layout'
+import { useProperty } from '../contexts/PropertyContext'
 
 export default function Settings() {
+  const { selectedPropertyId } = useProperty()
   const [taxRules, setTaxRules] = useState<TaxRule[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -24,14 +26,21 @@ export default function Settings() {
   })
 
   useEffect(() => {
-    loadTaxRules()
-  }, [])
+    if (selectedPropertyId) {
+      loadTaxRules()
+    } else {
+      // No property selected, stop loading
+      setLoading(false)
+    }
+  }, [selectedPropertyId])
 
   const loadTaxRules = async () => {
+    if (!selectedPropertyId) return
+
     try {
       setLoading(true)
       setError(null)
-      const rules = await adminApi.getTaxRules()
+      const rules = await adminApi.getTaxRules(selectedPropertyId)
       setTaxRules(rules)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load tax rules')
@@ -41,8 +50,10 @@ export default function Settings() {
   }
 
   const handleCreateRule = async () => {
+    if (!selectedPropertyId) return
+
     try {
-      await adminApi.createTaxRule(formData)
+      await adminApi.createTaxRule(selectedPropertyId, formData)
       setShowCreateForm(false)
       resetForm()
       loadTaxRules()
@@ -52,10 +63,10 @@ export default function Settings() {
   }
 
   const handleUpdateRule = async () => {
-    if (!editingRule) return
+    if (!editingRule || !selectedPropertyId) return
 
     try {
-      await adminApi.updateTaxRule(editingRule.id, formData)
+      await adminApi.updateTaxRule(selectedPropertyId, editingRule.id, formData)
       setEditingRule(null)
       resetForm()
       loadTaxRules()
@@ -65,10 +76,10 @@ export default function Settings() {
   }
 
   const handleDeleteRule = async (id: string) => {
-    if (!confirm('Are you sure you want to delete this tax rule?')) return
+    if (!confirm('Are you sure you want to delete this tax rule?') || !selectedPropertyId) return
 
     try {
-      await adminApi.deleteTaxRule(id)
+      await adminApi.deleteTaxRule(selectedPropertyId, id)
       loadTaxRules()
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Failed to delete tax rule')
@@ -123,6 +134,24 @@ export default function Settings() {
       <Layout>
         <div className="flex items-center justify-center h-64">
           <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      </Layout>
+    )
+  }
+
+  if (!selectedPropertyId) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <div className="max-w-md text-center">
+            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <AlertCircle className="w-8 h-8 text-blue-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-900 mb-2">No Property Selected</h3>
+            <p className="text-gray-600 mb-6">
+              You don't have any properties assigned. Please contact your administrator to assign you to a property.
+            </p>
+          </div>
         </div>
       </Layout>
     )

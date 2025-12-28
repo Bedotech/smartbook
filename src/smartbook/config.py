@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     # Application
     app_name: str = "Smartbook"
     debug: bool = False
+    test_mode: bool = False  # Enable test authentication bypass (development only)
     version: str = "0.1.0"
 
     # Database
@@ -32,8 +33,16 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 30
     magic_link_token_bytes: int = 32
 
+    # OAuth 2.0 (Google)
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
+
+    # URLs
+    backend_url: str = "http://localhost:8000"
+    frontend_url: str = "http://localhost:3000"
+
     # CORS
-    cors_origins: Union[list[str], str] = ["http://localhost:3000", "http://localhost:3001"]
+    cors_origins: Union[list[str], str] = ["http://localhost:3000", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003"]
 
     @field_validator("cors_origins", mode="before")
     @classmethod

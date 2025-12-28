@@ -1,8 +1,9 @@
 import { useParams, useNavigate } from 'react-router-dom'
-import { Calendar, Users, ArrowRight, Clock } from 'lucide-react'
+import { Calendar, Users, ArrowRight, Clock, Building2 } from 'lucide-react'
 import { format, parseISO } from 'date-fns'
 import { useBooking } from '../hooks/useBooking'
 import { useBookingProgress } from '../hooks/useBookingProgress'
+import { useProperty } from '../hooks/useProperty'
 import { LoadingSpinner } from '../components/LoadingSpinner'
 import { ErrorDisplay } from '../components/ErrorDisplay'
 import { ProgressBar } from '../components/ProgressBar'
@@ -19,9 +20,10 @@ export default function CheckInPage() {
     refetch: refetchBooking,
   } = useBooking(token!)
 
+  const { data: property, isLoading: propertyLoading } = useProperty(token!)
   const { data: progress, isLoading: progressLoading } = useBookingProgress(token!, !!booking)
 
-  const isLoading = bookingLoading || progressLoading
+  const isLoading = bookingLoading || progressLoading || propertyLoading
 
   if (isLoading) {
     return <LoadingSpinner message="Loading your booking..." />
@@ -53,6 +55,19 @@ export default function CheckInPage() {
   return (
     <div className="min-h-screen bg-gray-50 p-4">
       <div className="max-w-md mx-auto space-y-6 py-8">
+        {/* Property Header */}
+        {property && (
+          <div className="bg-white shadow-sm border border-gray-200 rounded-lg px-4 py-3 mb-4">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-5 h-5 text-blue-600" />
+              <div>
+                <p className="text-sm font-semibold text-gray-900">{property.name}</p>
+                <p className="text-xs text-gray-500">Facility Code: {property.facility_code}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">Welcome to Smartbook</h1>

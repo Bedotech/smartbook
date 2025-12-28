@@ -5,11 +5,13 @@ import { adminApi } from '@smartbook/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Button, Input } from '@smartbook/ui'
 import type { BookingCreateData } from '@smartbook/types'
 import Layout from '../components/Layout'
+import { useProperty } from '../contexts/PropertyContext'
 
 type Step = 1 | 2 | 3
 
 export default function NewBooking() {
   const navigate = useNavigate()
+  const { selectedPropertyId } = useProperty()
   const [currentStep, setCurrentStep] = useState<Step>(1)
   const [loading, setLoading] = useState(false)
   const [formData, setFormData] = useState<BookingCreateData>({
@@ -52,11 +54,11 @@ export default function NewBooking() {
   }
 
   const handleSubmit = async () => {
-    if (!validateStep(3)) return
+    if (!validateStep(3) || !selectedPropertyId) return
 
     try {
       setLoading(true)
-      const booking = await adminApi.createBooking(formData)
+      const booking = await adminApi.createBooking(selectedPropertyId, formData)
       navigate(`/bookings/${booking.id}`)
     } catch (err) {
       console.error('Failed to create booking:', err)

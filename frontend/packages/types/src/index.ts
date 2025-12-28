@@ -186,6 +186,49 @@ export interface TaxRuleCreate {
   structure_classification: string
 }
 
+// Property types
+export interface Property {
+  id: string
+  name: string
+  facility_code: string
+  email: string
+  phone?: string
+  ros1000_username?: string
+  ros1000_password?: string
+  ros1000_ws_key?: string
+  is_active: boolean
+  created_at?: string
+  updated_at?: string
+}
+
+export interface PropertyCreate {
+  name: string
+  facility_code: string
+  email: string
+  phone?: string
+  ros1000_username?: string
+  ros1000_password?: string
+  ros1000_ws_key?: string
+}
+
+export interface PropertyUpdate {
+  name?: string
+  facility_code?: string
+  email?: string
+  phone?: string
+  ros1000_username?: string
+  ros1000_password?: string
+  ros1000_ws_key?: string
+}
+
+export interface PropertyUser {
+  id: string
+  email: string
+  name: string
+  role: string
+  assigned_at: string
+}
+
 // Dashboard types
 export interface DashboardStats {
   total_bookings: number
@@ -194,4 +237,25 @@ export interface DashboardStats {
   synced_bookings: number
   error_bookings: number
   completion_rate: number
+}
+
+// User types
+export interface User {
+  id: string
+  email: string
+  name: string
+  role: 'admin' | 'staff'
+  oauth_provider: string
+  oauth_picture_url?: string
+  is_active: boolean
+  last_login_at?: string
+  created_at: string
+  updated_at: string
+}
+
+export interface UserPropertyAssignment {
+  property_id: string
+  property_name: string
+  assigned_at: string
+  assigned_by_user_id?: string
 }

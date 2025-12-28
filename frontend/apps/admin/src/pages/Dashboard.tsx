@@ -5,24 +5,33 @@ import { adminApi } from '@smartbook/api'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Badge } from '@smartbook/ui'
 import type { DashboardStats, Booking } from '@smartbook/types'
 import Layout from '../components/Layout'
+import { useProperty } from '../contexts/PropertyContext'
 
 export default function Dashboard() {
+  const { selectedPropertyId } = useProperty()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [recentBookings, setRecentBookings] = useState<Booking[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    loadDashboardData()
-  }, [])
+    if (selectedPropertyId) {
+      loadDashboardData()
+    } else {
+      // No property selected, stop loading
+      setLoading(false)
+    }
+  }, [selectedPropertyId])
 
   const loadDashboardData = async () => {
+    if (!selectedPropertyId) return
+
     try {
       setLoading(true)
       setError(null)
       const [dashboardStats, bookings] = await Promise.all([
-        adminApi.getDashboardStats(),
-        adminApi.getBookings({ limit: 5 }),
+        adminApi.getDashboardStats(selectedPropertyId),
+        adminApi.getBookings(selectedPropertyId, { limit: 5 }),
       ])
       setStats(dashboardStats)
       setRecentBookings(bookings)
@@ -91,6 +100,32 @@ export default function Dashboard() {
             </div>
           </CardContent>
         </Card>
+      </Layout>
+    )
+  }
+
+  if (!selectedPropertyId) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center h-96">
+          <Card className="max-w-md text-center">
+            <CardContent>
+              <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                <AlertCircle className="w-8 h-8 text-blue-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">No Property Selected</h3>
+              <p className="text-gray-600 mb-6">
+                You don't have any properties assigned. Please contact your administrator to assign you to a property.
+              </p>
+              <Link
+                to="/properties"
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                View Properties
+              </Link>
+            </CardContent>
+          </Card>
+        </div>
       </Layout>
     )
   }

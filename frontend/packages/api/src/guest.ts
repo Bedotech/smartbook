@@ -7,12 +7,16 @@ import type {
   MemberFormData,
   Municipality,
   Country,
+  Property,
 } from '@smartbook/types'
 
 export const guestApi = {
   // Booking endpoints
   getBooking: (token: string): Promise<Booking> =>
     apiClient.get(`/api/guest/booking/${token}`),
+
+  getProperty: (token: string): Promise<Property> =>
+    apiClient.get(`/api/guest/booking/${token}/property`),
 
   getProgress: (token: string): Promise<BookingProgress> =>
     apiClient.get(`/api/guest/booking/${token}/progress`),

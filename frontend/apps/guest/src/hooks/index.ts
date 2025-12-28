@@ -1,5 +1,6 @@
 export { useBooking } from './useBooking'
 export { useBookingProgress } from './useBookingProgress'
+export { useProperty } from './useProperty'
 export { useGuests } from './useGuests'
 export { useAddLeader } from './useAddLeader'
 export { useAddMember } from './useAddMember'
