@@ -22,9 +22,9 @@ class ComplianceRecordRepository(BaseRepository[ComplianceRecord]):
     with 5-year retention for TULPS compliance.
     """
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, property_id: UUID):
         super().__init__(session, ComplianceRecord)
-        self.tenant_id = tenant_id
+        self.property_id = property_id
 
     async def create_record(
         self,

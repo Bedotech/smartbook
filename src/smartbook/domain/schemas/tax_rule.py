@@ -41,4 +41,4 @@ class TaxRuleResponse(TaxRuleBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    property_id: UUID

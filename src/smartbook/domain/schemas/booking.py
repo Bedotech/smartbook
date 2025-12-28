@@ -50,7 +50,7 @@ class BookingResponse(BookingBase):
     """Schema for booking responses."""
 
     id: UUID
-    tenant_id: UUID
+    property_id: UUID
     status: BookingStatus
     magic_link_token: str
     token_expires_at: datetime

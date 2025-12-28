@@ -16,13 +16,13 @@ from smartbook.repositories.base import BaseRepository
 class TaxRuleRepository(BaseRepository[TaxRule]):
     """Repository for Tax Rule operations with tenant isolation."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, property_id: UUID):
         super().__init__(TaxRule, session)
-        self.tenant_id = tenant_id
+        self.property_id = property_id
 
     async def create_tax_rule(self, rule_data: dict) -> TaxRule:
-        """Create a new tax rule with automatic tenant_id injection."""
-        rule = TaxRule(**rule_data, tenant_id=self.tenant_id)
+        """Create a new tax rule with automatic property_id injection."""
+        rule = TaxRule(**rule_data, property_id=self.property_id)
         return await self.create(rule)
 
     async def get_active_rule(self, check_date: date | None = None) -> TaxRule | None:
@@ -41,7 +41,7 @@ class TaxRuleRepository(BaseRepository[TaxRule]):
         result = await self.session.execute(
             select(TaxRule)
             .where(
-                TaxRule.tenant_id == self.tenant_id,
+                TaxRule.property_id == self.property_id,
                 TaxRule.valid_from <= check_date,
                 (TaxRule.valid_until.is_(None)) | (TaxRule.valid_until >= check_date),
             )
@@ -59,7 +59,7 @@ class TaxRuleRepository(BaseRepository[TaxRule]):
         result = await self.session.execute(
             select(TaxRule)
             .where(
-                TaxRule.tenant_id == self.tenant_id,
+                TaxRule.property_id == self.property_id,
                 TaxRule.valid_from <= end_date,
                 (TaxRule.valid_until.is_(None)) | (TaxRule.valid_until >= start_date),
             )
@@ -75,7 +75,7 @@ class TaxRuleRepository(BaseRepository[TaxRule]):
         """Get all tax rules for the current tenant."""
         result = await self.session.execute(
             select(TaxRule)
-            .where(TaxRule.tenant_id == self.tenant_id)
+            .where(TaxRule.property_id == self.property_id)
             .order_by(TaxRule.valid_from.desc())
             .limit(limit)
             .offset(offset)

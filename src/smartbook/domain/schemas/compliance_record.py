@@ -14,7 +14,7 @@ class ComplianceRecordResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
-    tenant_id: UUID
+    property_id: UUID
     booking_id: UUID
     submission_type: str
     status: ComplianceStatus

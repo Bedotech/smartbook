@@ -15,11 +15,11 @@ from smartbook.repositories.base import BaseRepository
 
 
 class BookingRepository(BaseRepository[Booking]):
-    """Repository for Booking operations with tenant isolation."""
+    """Repository for Booking operations with property isolation."""
 
-    def __init__(self, session: AsyncSession, tenant_id: UUID):
+    def __init__(self, session: AsyncSession, property_id: UUID):
         super().__init__(Booking, session)
-        self.tenant_id = tenant_id
+        self.property_id = property_id
 
     async def create_booking(
         self,
@@ -28,7 +28,7 @@ class BookingRepository(BaseRepository[Booking]):
         token_expires_at: datetime,
     ) -> Booking:
         """
-        Create a new booking with automatic tenant_id injection.
+        Create a new booking with automatic property_id injection.
 
         Args:
             booking_data: Dictionary of booking fields
@@ -40,7 +40,7 @@ class BookingRepository(BaseRepository[Booking]):
         """
         booking = Booking(
             **booking_data,
-            tenant_id=self.tenant_id,
+            property_id=self.property_id,
             magic_link_token=magic_link_token,
             token_expires_at=token_expires_at,
             status=BookingStatus.PENDING,
@@ -52,7 +52,7 @@ class BookingRepository(BaseRepository[Booking]):
         result = await self.session.execute(
             select(Booking).where(
                 Booking.id == booking_id,
-                Booking.tenant_id == self.tenant_id,  # Tenant isolation
+                Booking.property_id == self.property_id,  # Tenant isolation
             )
         )
         return result.scalar_one_or_none()
@@ -61,7 +61,7 @@ class BookingRepository(BaseRepository[Booking]):
         """
         Get booking by magic link token.
 
-        Note: This does NOT require tenant_id since the token itself
+        Note: This does NOT require property_id since the token itself
         is the authentication mechanism for guests.
         """
         result = await self.session.execute(
@@ -76,7 +76,7 @@ class BookingRepository(BaseRepository[Booking]):
         status: BookingStatus | None = None,
     ) -> Sequence[Booking]:
         """Get all bookings for the current tenant with optional status filter."""
-        query = select(Booking).where(Booking.tenant_id == self.tenant_id)
+        query = select(Booking).where(Booking.property_id == self.property_id)
 
         if status:
             query = query.where(Booking.status == status)
@@ -94,7 +94,7 @@ class BookingRepository(BaseRepository[Booking]):
         """Get bookings within a date range for the current tenant."""
         result = await self.session.execute(
             select(Booking).where(
-                Booking.tenant_id == self.tenant_id,
+                Booking.property_id == self.property_id,
                 Booking.check_in_date >= start_date,
                 Booking.check_in_date <= end_date,
             ).order_by(Booking.check_in_date)
@@ -117,7 +117,7 @@ class BookingRepository(BaseRepository[Booking]):
         """Count bookings by status for the current tenant."""
         result = await self.session.execute(
             select(func.count(Booking.id)).where(
-                Booking.tenant_id == self.tenant_id,
+                Booking.property_id == self.property_id,
                 Booking.status == status,
             )
         )
